@@ -63,4 +63,48 @@ app.get('/api/buscar-perfil/:cedula', async (req, res) => {
   }
 });
 
+app.get('/api/perfil/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  const query = JSON.stringify({
+    method: 'equal',
+    attribute: 'user_id',
+    values: [userId]
+  });
+
+  const url = `${process.env.APPWRITE_ENDPOINT}/databases/${process.env.APPWRITE_DATABASE_ID}/collections/perfiles/documents?queries[]=${encodeURIComponent(query)}`;
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Appwrite-Project': process.env.APPWRITE_PROJECT_ID,
+        'X-Appwrite-Key': process.env.APPWRITE_API_KEY,
+      }
+    });
+
+    const data = await response.json();
+
+    if (!data.documents || data.documents.length === 0) {
+      return res.status(404).json({ error: 'Perfil no encontrado' });
+    }
+
+    const perfil = data.documents[0];
+    res.json({
+      docId:      perfil.$id,
+      userId:     perfil.user_id,
+      email:      perfil.email,
+      nombres:    perfil.nombres,
+      apellidos:  perfil.apellidos,
+      rol:        perfil.rol,
+      primerLogin: perfil.primer_login,
+      activo:     perfil.activo,
+    });
+
+  } catch (e) {
+    console.error('Error obteniendo perfil:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
