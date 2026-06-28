@@ -138,4 +138,67 @@ app.post('/api/actualizar-password', async (req, res) => {
   }
 });
 
+app.delete('/api/logout/:userId', async (req, res) => {
+  const { userId } = req.params;
+
+  const url = `${process.env.APPWRITE_ENDPOINT}/users/${userId}/sessions`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Appwrite-Project': process.env.APPWRITE_PROJECT_ID,
+        'X-Appwrite-Key': process.env.APPWRITE_API_KEY,
+      },
+    });
+
+    if (!response.ok) {
+      const data = await response.json();
+      return res.status(response.status).json({ error: data.message });
+    }
+
+    res.json({ ok: true });
+
+  } catch (e) {
+    console.error('Error en logout:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.patch('/api/perfil/:docId/completar-login', async (req, res) => {
+  const { docId } = req.params;
+
+  const url = `${process.env.APPWRITE_ENDPOINT}/databases/${process.env.APPWRITE_DATABASE_ID}/collections/perfiles/documents/${docId}`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Appwrite-Project': process.env.APPWRITE_PROJECT_ID,
+        'X-Appwrite-Key': process.env.APPWRITE_API_KEY,
+      },
+      body: JSON.stringify({
+        data: {
+          primer_login: false,
+          ultimo_acceso: new Date().toISOString(),
+        }
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: data.message });
+    }
+
+    res.json({ ok: true });
+
+  } catch (e) {
+    console.error('Error completando login:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
