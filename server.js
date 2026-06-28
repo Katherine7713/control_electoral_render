@@ -5,6 +5,7 @@ const path = require('path');
 
 const app = express();
 app.use(cors());
+app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
 app.use(express.static(path.join(__dirname, 'public')));
@@ -103,6 +104,36 @@ app.get('/api/perfil/:userId', async (req, res) => {
 
   } catch (e) {
     console.error('Error obteniendo perfil:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/actualizar-password', async (req, res) => {
+  const { userId, newPassword } = req.body;
+
+  const url = `${process.env.APPWRITE_ENDPOINT}/users/${userId}/password`;
+
+  try {
+    const response = await fetch(url, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Appwrite-Project': process.env.APPWRITE_PROJECT_ID,
+        'X-Appwrite-Key': process.env.APPWRITE_API_KEY,
+      },
+      body: JSON.stringify({ password: newPassword }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return res.status(response.status).json({ error: data.message });
+    }
+
+    res.json({ ok: true });
+
+  } catch (e) {
+    console.error('Error actualizando password:', e);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
