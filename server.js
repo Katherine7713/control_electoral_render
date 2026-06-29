@@ -201,7 +201,6 @@ app.patch('/api/perfil/:docId/completar-login', async (req, res) => {
   }
 });
 
-// ── Helper para consultar colecciones ──────────────────────
 async function getCollection(collectionId, queries = []) {
   let url = `${process.env.APPWRITE_ENDPOINT}/databases/${process.env.APPWRITE_DATABASE_ID}/collections/${collectionId}/documents?limit=100`;
   if (queries.length > 0) {
@@ -220,7 +219,6 @@ async function getCollection(collectionId, queries = []) {
   return data.documents || [];
 }
 
-// ── Dashboard provincial completo ──────────────────────────
 app.get('/api/dashboard-provincial', async (req, res) => {
   try {
     const [recintos, mesas, actas, organizaciones, perfiles, votos] = await Promise.all([
@@ -239,9 +237,9 @@ app.get('/api/dashboard-provincial', async (req, res) => {
   }
 });
 
-// ── Crear recinto ──────────────────────────────────────────
 app.post('/api/recintos', async (req, res) => {
   try {
+    console.log('Body recibido:', JSON.stringify(req.body));
     const url = `${process.env.APPWRITE_ENDPOINT}/databases/${process.env.APPWRITE_DATABASE_ID}/collections/recintos/documents`;
     const response = await fetch(url, {
       method: 'POST',
@@ -256,14 +254,15 @@ app.post('/api/recintos', async (req, res) => {
       }),
     });
     const data = await response.json();
+    console.log('Respuesta Appwrite recintos:', JSON.stringify(data));
     if (!response.ok) return res.status(response.status).json({ error: data.message });
     res.json({ id: data.$id });
   } catch (e) {
+    console.error('Error:', e);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
 
-// ── Crear mesa electoral ───────────────────────────────────
 app.post('/api/mesas', async (req, res) => {
   try {
     const url = `${process.env.APPWRITE_ENDPOINT}/databases/${process.env.APPWRITE_DATABASE_ID}/collections/mesa_electoral/documents`;
@@ -287,7 +286,6 @@ app.post('/api/mesas', async (req, res) => {
   }
 });
 
-// ── Actualizar documento genérico ─────────────────────────
 app.patch('/api/documentos/:coleccion/:docId', async (req, res) => {
   const { coleccion, docId } = req.params;
   try {
