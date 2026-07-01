@@ -317,6 +317,17 @@ app.delete('/api/recintos/:id', async (req, res) => {
   }
 });
 
+app.get('/api/recintos-sin-coordinador', async (req, res) => {
+  try {
+    const recintos = await getCollection('recintos');
+    const sinCoordinador = recintos.filter(r => !r.user_id_coordinador);
+    res.json(sinCoordinador);
+  } catch (e) {
+    console.error('Error obteniendo recintos sin coordinador:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 app.post('/api/recintos', async (req, res) => {
   try {
     console.log('Body recibido:', JSON.stringify(req.body));
