@@ -11,6 +11,13 @@ const PORT = process.env.PORT || 3000;
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
+const { Client, Users, ID } = require('node-appwrite');
+const appwriteClient = new Client()
+  .setEndpoint(process.env.APPWRITE_ENDPOINT)
+  .setProject(process.env.APPWRITE_PROJECT_ID)
+  .setKey(process.env.APPWRITE_API_KEY);
+const users = new Users(appwriteClient);
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/config', (req, res) => {
@@ -56,6 +63,22 @@ app.post('/api/enviar-credenciales', async (req, res) => {
       res.status(500).json({ error: 'Error al enviar el correo' });
     }
   });
+
+app.post('/api/usuarios', async (req, res) => {
+  const { email, password, name } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'Faltan email y/o password' });
+  }
+
+  try {
+    const user = await users.create(ID.unique(), email, password, name);
+    res.json({ ok: true, userId: user.$id });
+  } catch (e) {
+    console.error('Error creando usuario:', e);
+    res.status(500).json({ error: e.message || 'Error al crear usuario' });
+  }
+});
 
 app.get('/api/buscar-perfil/:cedula', async (req, res) => {
   const { cedula } = req.params;
@@ -313,17 +336,6 @@ app.delete('/api/recintos/:id', async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('Error eliminando recinto:', e);
-    res.status(500).json({ error: 'Error interno del servidor' });
-  }
-});
-
-app.get('/api/recintos-sin-coordinador', async (req, res) => {
-  try {
-    const recintos = await getCollection('recintos');
-    const sinCoordinador = recintos.filter(r => !r.user_id_coordinador);
-    res.json(sinCoordinador);
-  } catch (e) {
-    console.error('Error obteniendo recintos sin coordinador:', e);
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
