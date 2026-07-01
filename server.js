@@ -237,6 +237,54 @@ app.get('/api/dashboard-provincial', async (req, res) => {
   }
 });
 
+app.delete('/api/recintos/:id', async (req, res) => {
+  const { id } = req.params;
+  const baseUrl = `${process.env.APPWRITE_ENDPOINT}/databases/${process.env.APPWRITE_DATABASE_ID}/collections`;
+  try {
+    const mesaQuery = JSON.stringify({
+      method: 'equal',
+      attribute: 'recinto_id',
+      values: [id]
+    });
+    const mesasUrl = `${baseUrl}/mesa_electoral/documents?queries[]=${encodeURIComponent(mesaQuery)}`;
+    const mesasRes = await fetch(mesasUrl, {
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Appwrite-Project': process.env.APPWRITE_PROJECT_ID,
+        'X-Appwrite-Key': process.env.APPWRITE_API_KEY,
+      }
+    });
+    const mesasData = await mesasRes.json();
+    const mesasDocs = mesasData.documents || [];
+    await Promise.all(mesasDocs.map(m => 
+      fetch(`${baseUrl}/mesa_electoral/documents/${m.$id}`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Appwrite-Project': process.env.APPWRITE_PROJECT_ID,
+          'X-Appwrite-Key': process.env.APPWRITE_API_KEY,
+        }
+      })
+    ));
+    const recintoRes = await fetch(`${baseUrl}/recintos/documents/${id}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Appwrite-Project': process.env.APPWRITE_PROJECT_ID,
+        'X-Appwrite-Key': process.env.APPWRITE_API_KEY,
+      }
+    });
+    if (!recintoRes.ok) {
+      const errData = await recintoRes.json();
+      return res.status(recintoRes.status).json({ error: errData.message });
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Error eliminando recinto:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
 app.post('/api/recintos', async (req, res) => {
   try {
     console.log('Body recibido:', JSON.stringify(req.body));
