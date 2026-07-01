@@ -265,6 +265,7 @@ app.post('/api/recintos', async (req, res) => {
 
 app.post('/api/mesas', async (req, res) => {
   try {
+    console.log('Creando mesa:', JSON.stringify(req.body));
     const url = `${process.env.APPWRITE_ENDPOINT}/databases/${process.env.APPWRITE_DATABASE_ID}/collections/mesa_electoral/documents`;
     const response = await fetch(url, {
       method: 'POST',
@@ -279,10 +280,12 @@ app.post('/api/mesas', async (req, res) => {
       }),
     });
     const data = await response.json();
+    console.log('Respuesta Appwrite mesa:', JSON.stringify(data));
     if (!response.ok) return res.status(response.status).json({ error: data.message });
     res.json({ id: data.$id });
   } catch (e) {
-    res.status(500).json({ error: 'Error interno del servidor' });
+    console.error('Error creando mesa:', e);
+    res.status(500).json({ error: e.message });
   }
 });
 
