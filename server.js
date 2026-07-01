@@ -11,12 +11,23 @@ const PORT = process.env.PORT || 3000;
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const { Client, Users, ID } = require('node-appwrite');
+const { Client, Users, ID, Teams, Databases } = require('node-appwrite');
 const appwriteClient = new Client()
   .setEndpoint(process.env.APPWRITE_ENDPOINT)
   .setProject(process.env.APPWRITE_PROJECT_ID)
   .setKey(process.env.APPWRITE_API_KEY);
 const users = new Users(appwriteClient);
+const teams = new Teams(appwriteClient);
+const databases = new Databases(appwriteClient);
+
+const DATABASE_ID = process.env.APPWRITE_DATABASE_ID;
+const COLLECTION_PERFILES = 'perfiles';
+
+const TEAM_IDS = {
+  coordinador_recinto: process.env.TEAM_ID_COORDINADOR_RECINTO,
+  veedor: process.env.TEAM_ID_VEEDORES,
+  coordinador_provincial: process.env.TEAM_ID_COORDINADORES_PROVINCIALES,
+};
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -65,17 +76,58 @@ app.post('/api/enviar-credenciales', async (req, res) => {
   });
 
 app.post('/api/usuarios', async (req, res) => {
-  const { email, password, name, phone } = req.body;
+  const { email, password, name, phone, rol, cedula, telefono, nombres, apellidos, } = req.body;
 
-  if (!email || !password) {
-    return res.status(400).json({ error: 'Faltan email y/o password' });
+  if (!email || !password || !rol) {
+    return res.status(400).json({ error: 'Faltan email, password o rol' });
   }
+
+  const teamId = TEAM_IDS[rol];
+  if (!teamId) {
+    return res.status(400).json({ error: `Rol '${rol}' no tiene team configurado` });
+  }
+
+  let createdUserId = null;
 
   try {
     const user = await users.create(ID.unique(), email, phone ?? null, password, name);
-    res.json({ ok: true, userId: user.$id });
+    createdUserId = user.$id;
+    await teams.createMembership(
+      teamId,
+      ['member'],
+      undefined,
+      createdUserId,
+    );
+    
+    const perfil = await databases.createDocument(
+      DATABASE_ID,
+      COLLECTION_PERFILES,
+      ID.unique(),
+      {
+        user_id: createdUserId,
+        cedula,
+        nombres,
+        apellidos,
+        telefono,
+        email,
+        rol,
+        primer_login: true,
+        activo: true,
+      }
+    );
+
+    res.json({ ok: true, userId: createdUserId, perfilId: perfil.$id });
+
   } catch (e) {
     console.error('Error creando usuario:', e);
+    if (createdUserId) {
+      try {
+        await users.delete(createdUserId);
+        console.log('Rollback: usuario eliminado por fallo posterior', createdUserId);
+      } catch (rollbackErr) {
+        console.error('Error en rollback:', rollbackErr);
+      }
+    }
     res.status(500).json({ error: e.message || 'Error al crear usuario' });
   }
 });
