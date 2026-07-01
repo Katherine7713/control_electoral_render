@@ -8,6 +8,9 @@ app.use(cors());
 app.use(express.json());
 const PORT = process.env.PORT || 3000;
 
+const sgMail = require('@sendgrid/mail');
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/config', (req, res) => {
@@ -24,6 +27,35 @@ app.get('/verify-email', (req, res) => {
 app.get('/reset-password', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'reset-password.html'));
 });
+
+app.post('/api/enviar-credenciales', async (req, res) => {
+  const { email, nombre, password } = req.body;
+
+  if(!email || !nombre || !password) {
+    return res.status(400).json({ error: 'Faltan datos requeridos' });
+  }
+
+  try {
+    await sgMail.send({
+      to: email,
+      from: 'sailemaastokaty@gmail.com',
+      subject: 'Credenciales de acceso - Control Electoral Ecuador',
+      html: `
+        <p>Bienvenido <strong>${nombre}</strong>,</p>
+        <p>Se ha creado tu cuenta en el sistema de Control Electoral.</p>
+        <p>Tus credenciales de acceso son:</p>
+          <ul>
+            <li><strong>Correo electrónico:</strong> ${email}</li>
+            <li><strong>Contraseña:</strong> ${password}</li>
+          </ul>
+        <p>Por tu seguridad, vas a poder realizar el cambio de contraseña al iniciar sesión</p>`
+      });
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('Error enviando credenciales:', e);
+      res.status(500).json({ error: 'Error al enviar el correo' });
+    }
+  });
 
 app.get('/api/buscar-perfil/:cedula', async (req, res) => {
   const { cedula } = req.params;

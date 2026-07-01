@@ -5,6 +5,7 @@
     "start": "node server.js"
   },
   "dependencies": {
+    "@sendgrid/mail": "^8.1.6",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^4.19.2"
