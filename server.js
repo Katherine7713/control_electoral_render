@@ -65,14 +65,14 @@ app.post('/api/enviar-credenciales', async (req, res) => {
   });
 
 app.post('/api/usuarios', async (req, res) => {
-  const { email, password, name } = req.body;
+  const { email, password, name, phone } = req.body;
 
   if (!email || !password) {
     return res.status(400).json({ error: 'Faltan email y/o password' });
   }
 
   try {
-    const user = await users.create(ID.unique(), email, password, name);
+    const user = await users.create(ID.unique(), email, phone ?? null, password, name);
     res.json({ ok: true, userId: user.$id });
   } catch (e) {
     console.error('Error creando usuario:', e);
