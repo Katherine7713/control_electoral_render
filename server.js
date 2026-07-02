@@ -2,6 +2,7 @@ require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
 const path = require('path');
+const crypto = require('crypto');
 
 const app = express();
 app.use(cors());
@@ -11,7 +12,8 @@ const PORT = process.env.PORT || 3000;
 const sgMail = require('@sendgrid/mail');
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 
-const { Client, Users, ID, Teams, Databases } = require('node-appwrite');
+const { Client, Users, ID, Teams, Databases, Query } = require('node-appwrite');
+
 const appwriteClient = new Client()
   .setEndpoint(process.env.APPWRITE_ENDPOINT)
   .setProject(process.env.APPWRITE_PROJECT_ID)
@@ -47,13 +49,22 @@ app.get('/reset-password', (req, res) => {
 });
 
 app.post('/api/enviar-credenciales', async (req, res) => {
-  const { email, nombre, password } = req.body;
+  const { userId, email, nombre, password } = req.body;
 
-  if(!email || !nombre || !password) {
+  if(!userId || !email || !nombre || !password) {
     return res.status(400).json({ error: 'Faltan datos requeridos' });
   }
 
   try {
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+
+    await users.updatePrefs(userId, {
+      verification_token: verificationToken,
+      verification_created_at: Date.now(),
+    });
+
+    const verifyUrl = `https://control-electoral.onrender.com/verify-email?userId=${userId}&token=${verificationToken}`;
+    
     await sgMail.send({
       to: email,
       from: 'sailemaastokaty@gmail.com',
@@ -66,7 +77,20 @@ app.post('/api/enviar-credenciales', async (req, res) => {
             <li><strong>Correo electrónico:</strong> ${email}</li>
             <li><strong>Contraseña:</strong> ${password}</li>
           </ul>
-        <p>Por tu seguridad, vas a poder realizar el cambio de contraseña al iniciar sesión</p>`
+        <p>Por tu seguridad, vas a poder realizar el cambio de contraseña al iniciar sesión</p>
+        <p>Antes de continuar, confirma tu correo electrónico</p>
+        <p>style="margin: 24px 0;">
+          <a href="${verifyUrl}"
+              style="background-color:#1a56db;color:#ffffff;padding:12px 24px;
+                    text-decoration:none;border-radius:6px;font-weight:bold;
+                    display:inline-block;">
+            Verificar mi correo electrónico
+          </a>
+        </p>
+        <p style="font-size:12px;color:#666;">
+          Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+          ${verifyUrl}
+        </p>`
       });
       res.json({ ok: true });
     } catch (e) {
@@ -74,6 +98,125 @@ app.post('/api/enviar-credenciales', async (req, res) => {
       res.status(500).json({ error: 'Error al enviar el correo' });
     }
   });
+
+app.post('/api/verify-email', async (req, res) => {
+  const { userId, token } = req.body;
+
+  if (!userId || !token) {
+    return res.status(400).json({ error: 'Faltan datos' });
+  }
+
+  try {
+    const prefs = await users.getPrefs(userId);
+
+    if (!prefs.verification_token || prefs.verification_token !== token) {
+      return res.status(400).json({ error: 'Enlace inválido o ya utilizado'
+      });
+    }
+
+    const createdAt = Number(prefs.verification_created_at) || 0;
+    const EXPIRY_MS = 5 * 60 * 1000;
+    if (Date.now() - createdAt > EXPIRY_MS) {
+      return res.status(400).json({ error: 'El enlace ha expirado. Solicita que te reenvíen las credenciales.' });
+    }
+
+    await users.updateEmailVerification(userId, true);
+    const { verification_token, verification_created_at, ...restPrefs } = prefs;
+    await users.updatePrefs(userId, restPrefs);
+
+    res.json({ ok: true });
+  } catch (e) {
+        console.error('Error verificando email:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+app.post('/api/solicitar-reset-password', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Falta el correo electrónico' });
+
+  try {
+    const usersList = await users.list([Query.equal('email', email)]);
+    if(userList.total === 0) {
+      return res.json({ ok: true });
+    }
+
+    const user = usersList.users[0];
+    const existingPrefs = await users.getPrefs(user.$id);
+
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    await users.updatePrefs(user.$id, {
+      ...existingPrefs,
+      reset_token: resetToken,
+      reset_created_at: Date.now(),
+    });
+
+    const resetUrl = `https://control-electoral.onrender.com/reset-password?userId=${user.$id}&token=${resetToken}`;
+
+    await sgMail.send({
+      to: email,
+      from: 'sailemaastokaty@gmail.com',
+      subject: 'Solicitud de cambio de contraseña - Control Electoral Ecuador',
+      html: `
+        <p>Hola <strong>${user.name}</strong>,</p>
+        <p>Recibimos una solicitud para cambiar tu contraseña en Control Electoral Ecuador.</p>
+        <p>Si no solicitaste este cambio, ignora este correo.</p>
+        <p>Para cambiar tu contraseña, haz clic en el siguiente botón</p>
+        <p style="margin: 24px 0;">
+          <a href="${resetUrl}"
+            style="background-color:#1a56db;color:#ffffff;padding:12px 24px;
+                    text-decoration:none;border-radius:6px;font-weight:bold;
+                    display:inline-block;">
+            Restablecer mi contraseña
+          </a>
+        </p>
+                <p style="font-size:12px;color:#666;">
+          Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+          ${resetUrl}
+        </p>`
+    });
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Error solicitando reset de password:', e);
+    res.status(500).json({ error: 'Error al procesar la solicitud' });
+  }
+});
+
+app.post('/api/confirmar-reset-password', async (req, res) => {
+  const { userId, token, newPassword } = req.body;
+
+  if (!userId || !token || !newPassword) {
+    return res.status(400).json({ error: 'Faltan datos' });
+  }
+  if (newPassword.length < 8) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+  }
+
+    try {
+    const prefs = await users.getPrefs(userId);
+
+    if (!prefs.reset_token || prefs.reset_token !== token) {
+      return res.status(400).json({ error: 'Enlace inválido o ya utilizado' });
+    }
+
+    const createdAt = Number(prefs.reset_created_at) || 0;
+    const EXPIRY_MS = 5 * 60 * 1000;
+    if (Date.now() - createdAt > EXPIRY_MS) {
+      return res.status(400).json({ error: 'El enlace ha expirado. Solicita uno nuevo.' });
+    }
+
+    await users.updatePassword(userId, newPassword);
+
+    const { reset_token, reset_created_at, ...restPrefs } = prefs;
+    await users.updatePrefs(userId, restPrefs);
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Error confirmando reset password:', e);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
 app.post('/api/usuarios', async (req, res) => {
   const { email, password, name, phone, rol, cedula, telefono, nombres, apellidos, } = req.body;
