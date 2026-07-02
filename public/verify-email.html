@@ -4,7 +4,6 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Verificación de Cuenta - Control Electoral Ecuador</title>
-    <script src="https://cdn.jsdelivr.net/npm/appwrite@14.0.0/dist/umd/sdk.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -104,30 +103,33 @@
 </div>
 
 <script>
-    async function initAppwrite() {
-        try {
-            const response = await fetch('/api/config');
-            const config = await response.json();
-            const sdk = window.appwrite;
-            if (!sdk) { showError('No se pudo cargar el SDK.'); return; }
-            const client = new sdk.Client().setEndpoint(config.appwriteEndpoint).setProject(config.appwriteProjectId);
-            const account = new sdk.Account(client);
-            await verifyEmail(account);
-        } catch (e) {
-            showError('Error al cargar la configuración: ' + e.message);
-        }
-    }
-
-    async function verifyEmail(account) {
+    async function verifyEmail() {
         const params = new URLSearchParams(window.location.search);
         const userId = params.get('userId');
-        const secret = params.get('secret');
-        if (!userId || !secret) { showError('Enlace de verificación inválido.'); return; }
+        const token = params.get('token');
+
+        if (!userId || !token) {
+            showError('Enlace de verificación inválido.');
+            return;
+        }
+
         try {
-            await account.updateVerification(userId, secret);
-            document.getElementById('loading').classList.add('hidden');
-            document.getElementById('success').classList.remove('hidden');
-        } catch (e) { showError(e.message); }
+            const response = await fetch('/api/verificar-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId, token }),
+            });
+            const data = await response.json();
+
+            if (response.ok) {
+                document.getElementById('loading').classList.add('hidden');
+                document.getElementById('success').classList.remove('hidden');
+            } else {
+                showError(data.error || 'El enlace de verificación es inválido o ha expirado.');
+            }
+        } catch (e) {
+            showError('Error de conexión. Intenta nuevamente.');
+        }
     }
 
     function showError(msg) {
@@ -141,7 +143,7 @@
         setTimeout(() => alert('Abre la app manualmente si no se abrió.'), 2000);
     }
 
-    initAppwrite();
+    verifyEmail();
 </script>
 </body>
 </html>

@@ -192,12 +192,13 @@ app.post('/api/solicitar-reset-password', async (req, res) => {
   if (!email) return res.status(400).json({ error: 'Falta el correo electrónico' });
 
   try {
-    const usersList = await users.list([Query.equal('email', email)]);
-    if(userList.total === 0) {
+    const userList = await users.list([Query.equal('email', email)]);
+
+    if (userList.total === 0) {
       return res.json({ ok: true });
     }
 
-    const user = usersList.users[0];
+    const user = userList.users[0];
     const existingPrefs = await users.getPrefs(user.$id);
 
     const resetToken = crypto.randomBytes(32).toString('hex');
@@ -212,12 +213,11 @@ app.post('/api/solicitar-reset-password', async (req, res) => {
     await sgMail.send({
       to: email,
       from: 'sailemaastokaty@gmail.com',
-      subject: 'Solicitud de cambio de contraseña - Control Electoral Ecuador',
+      subject: 'Restablecer contraseña - Control Electoral Ecuador',
       html: `
-        <p>Hola <strong>${user.name}</strong>,</p>
-        <p>Recibimos una solicitud para cambiar tu contraseña en Control Electoral Ecuador.</p>
-        <p>Si no solicitaste este cambio, ignora este correo.</p>
-        <p>Para cambiar tu contraseña, haz clic en el siguiente botón</p>
+        <p>Hola,</p>
+        <p>Recibimos una solicitud para restablecer tu contraseña en el sistema de Control Electoral.</p>
+        <p>Si fuiste tú, haz clic en el siguiente botón para crear una nueva contraseña:</p>
         <p style="margin: 24px 0;">
           <a href="${resetUrl}"
             style="background-color:#1a56db;color:#ffffff;padding:12px 24px;
@@ -226,7 +226,10 @@ app.post('/api/solicitar-reset-password', async (req, res) => {
             Restablecer mi contraseña
           </a>
         </p>
-                <p style="font-size:12px;color:#666;">
+        <p style="font-size:12px;color:#666;">
+          Si no solicitaste este cambio, puedes ignorar este correo. El enlace expira en 1 hora.
+        </p>
+        <p style="font-size:12px;color:#666;">
           Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
           ${resetUrl}
         </p>`
