@@ -79,7 +79,7 @@ app.post('/api/enviar-credenciales', async (req, res) => {
           </ul>
         <p>Por tu seguridad, vas a poder realizar el cambio de contraseña al iniciar sesión</p>
         <p>Antes de continuar, confirma tu correo electrónico</p>
-        <p>style="margin: 24px 0;">
+        <p style="margin: 24px 0;">
           <a href="${verifyUrl}"
               style="background-color:#1a56db;color:#ffffff;padding:12px 24px;
                     text-decoration:none;border-radius:6px;font-weight:bold;
@@ -99,7 +99,7 @@ app.post('/api/enviar-credenciales', async (req, res) => {
     }
   });
 
-app.post('/api/verify-email', async (req, res) => {
+app.post('/api/verificar-email', async (req, res) => {
   const { userId, token } = req.body;
 
   if (!userId || !token) {
@@ -115,7 +115,7 @@ app.post('/api/verify-email', async (req, res) => {
     }
 
     const createdAt = Number(prefs.verification_created_at) || 0;
-    const EXPIRY_MS = 5 * 60 * 1000;
+    const EXPIRY_MS = 24 * 60 * 60 * 1000;
     if (Date.now() - createdAt > EXPIRY_MS) {
       return res.status(400).json({ error: 'El enlace ha expirado. Solicita que te reenvíen las credenciales.' });
     }
@@ -248,8 +248,8 @@ app.post('/api/confirmar-reset-password', async (req, res) => {
   if (!userId || !token || !newPassword) {
     return res.status(400).json({ error: 'Faltan datos' });
   }
-  if (newPassword.length < 8) {
-    return res.status(400).json({ error: 'La contraseña debe tener al menos 8 caracteres' });
+  if (newPassword.length < 12) {
+    return res.status(400).json({ error: 'La contraseña debe tener al menos 12 caracteres' });
   }
 
     try {
@@ -260,7 +260,7 @@ app.post('/api/confirmar-reset-password', async (req, res) => {
     }
 
     const createdAt = Number(prefs.reset_created_at) || 0;
-    const EXPIRY_MS = 5 * 60 * 1000;
+    const EXPIRY_MS = 60 * 60 * 1000;
     if (Date.now() - createdAt > EXPIRY_MS) {
       return res.status(400).json({ error: 'El enlace ha expirado. Solicita uno nuevo.' });
     }
