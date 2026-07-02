@@ -131,6 +131,62 @@ app.post('/api/verify-email', async (req, res) => {
   }
 });
 
+app.post('/api/reenviar-verificacion', async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'Falta el correo electrónico' });
+
+  try {
+    const userList = await users.list([Query.equal('email', email)]);
+
+    if (userList.total === 0) {
+      return res.json({ ok: true });
+    }
+
+    const user = userList.users[0];
+
+    if (user.emailVerification) {
+      return res.json({ ok: true, yaVerificado: true });
+    }
+
+    const existingPrefs = await users.getPrefs(user.$id);
+    const verificationToken = crypto.randomBytes(32).toString('hex');
+
+    await users.updatePrefs(user.$id, {
+      ...existingPrefs,
+      verification_token: verificationToken,
+      verification_created_at: Date.now(),
+    });
+
+    const verifyUrl = `https://control-electoral.onrender.com/verify-email?userId=${user.$id}&token=${verificationToken}`;
+
+    await sgMail.send({
+      to: email,
+      from: 'sailemaastokaty@gmail.com',
+      subject: 'Verifica tu cuenta - Control Electoral Ecuador',
+      html: `
+        <p>Hola${user.name ? ` ${user.name}` : ''},</p>
+        <p>Recibimos una solicitud para reenviar el enlace de verificación de tu cuenta.</p>
+        <p style="margin: 24px 0;">
+          <a href="${verifyUrl}"
+            style="background-color:#1a56db;color:#ffffff;padding:12px 24px;
+                    text-decoration:none;border-radius:6px;font-weight:bold;
+                    display:inline-block;">
+            Verificar mi correo electrónico
+          </a>
+        </p>
+        <p style="font-size:12px;color:#666;">
+          Si el botón no funciona, copia y pega este enlace en tu navegador:<br>
+          ${verifyUrl}
+        </p>`
+    });
+
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Error reenviando verificación:', e);
+    res.status(500).json({ error: 'Error al reenviar el correo' });
+  }
+});
+
 app.post('/api/solicitar-reset-password', async (req, res) => {
   const { email } = req.body;
   if (!email) return res.status(400).json({ error: 'Falta el correo electrónico' });
